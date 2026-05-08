@@ -1,0 +1,147 @@
+---
+title: "Common Issues — Psychology Live Troubleshooting"
+description: "Step-by-step fixes for the most common Psychology Live problems: connection failures, missing visuals, danmaku issues, confetti errors, and performance lag."
+---
+
+Most problems with Psychology Live fall into one of two categories: connection issues caused by the PeerJS signaling setup, and rendering issues caused by browser settings or missing hardware acceleration. Work through the relevant section below to diagnose and fix the problem you are seeing.
+
+---
+
+## Connection Issues
+
+### "Connecting to Screen..." never changes to "Connected"
+
+The status bar in `client.html` stays on **"Connecting to Screen..."** when the client cannot reach `screen.html`'s peer.
+
+<Steps>
+  <Step title="Open screen.html first">
+    `screen.html` must be open and fully loaded before any client tries to connect. It registers the peer ID `screen-master-888` with the PeerJS signaling server on load. Without it, there is no peer to connect to.
+  </Step>
+  <Step title="Confirm internet access on both sides">
+    Both the presenter's machine and the participant's device need to reach the PeerJS cloud servers. Open any external website on each device to verify connectivity.
+  </Step>
+  <Step title="Refresh both pages">
+    If a previous session ended without a clean close, the peer ID may still be registered as stale. Refresh `screen.html` first to re-register the ID, then refresh `client.html`.
+  </Step>
+  <Step title="Check the browser console for errors">
+    Open DevTools (`F12` or `Cmd+Option+I`) on both pages and look at the **Console** tab. PeerJS logs connection errors with descriptive messages that identify whether the problem is network-level or ID-conflict-level.
+  </Step>
+</Steps>
+
+<Warning>
+  Corporate and school networks often block the UDP ports and STUN/TURN relay servers that WebRTC requires. If you are on a restricted network, contact your network administrator or switch to an unrestricted connection.
+</Warning>
+
+---
+
+### Screen shows "Initializing..." for Peer ID
+
+The **Peer ID** field in `screen.html`'s System Status panel reads **"Initializing..."** and never updates to `screen-master-888`.
+
+This means PeerJS failed to connect to the signaling server. Check the following:
+
+- Verify that the machine running `screen.html` has an active internet connection.
+- The PeerJS cloud service may be temporarily unavailable. Wait a few minutes and refresh the page.
+- Open the browser console and look for errors beginning with `PeerJS:` — these indicate whether the issue is DNS, TLS, or a server-side outage.
+
+---
+
+### Participant answers not showing on screen
+
+The chart in `screen.html` does not update when participants submit answers.
+
+- **Check that the peer IDs match.** The screen listens on `screen-master-888` (hardcoded in `screen.html` line 145). The client connects to `screen-master-888` (hardcoded in `client.html` line 104). If either value differs, answers are sent to the wrong or nonexistent peer.
+- **Open the browser console** on both pages and look for PeerJS errors. A disconnected `conn` object will silently drop outgoing data.
+- **Try a different browser.** Some browser extensions (ad blockers, privacy tools) interfere with WebRTC. Test in a clean incognito window or a different browser to rule this out.
+
+---
+
+## Rendering Issues
+
+### 3D background not displaying on screen.html
+
+The animated particle starfield is rendered by Three.js using **WebGL**. If you see a black background with no particles, WebGL is likely disabled.
+
+<Steps>
+  <Step title="Enable hardware acceleration in Chrome">
+    Open Chrome and go to **Settings → System → Use hardware acceleration when available**. Toggle it on and relaunch Chrome.
+  </Step>
+  <Step title="Verify WebGL is available">
+    Visit `chrome://gpu` in the address bar. Look for **WebGL** in the Graphics Feature Status section — it should read **Hardware accelerated**.
+  </Step>
+  <Step title="Update your graphics drivers">
+    Outdated GPU drivers can cause Chrome to block WebGL. Update your drivers through your operating system's device manager or the GPU manufacturer's site.
+  </Step>
+</Steps>
+
+<Note>
+  Virtual machines and some remote desktop environments disable GPU passthrough by default, which blocks WebGL. If you are presenting through a VM, test on a physical machine instead.
+</Note>
+
+---
+
+### Black screen or blank page on screen.html
+
+If `screen.html` loads but displays nothing — or shows a completely black page — a JavaScript error is likely blocking the rendering pipeline.
+
+<Steps>
+  <Step title="Open browser DevTools">
+    Press `F12` (Windows/Linux) or `Cmd+Option+I` (Mac) to open DevTools, then click the **Console** tab.
+  </Step>
+  <Step title="Look for red error messages">
+    Any uncaught exception during initialization will stop subsequent code from running. Common culprits are CDN load failures (Three.js, Chart.js, or PeerJS failing to load) and WebGL context creation errors.
+  </Step>
+  <Step title="Check the Network tab">
+    Switch to the **Network** tab and reload the page. Look for any resources that failed to load (shown in red). All three CDN scripts must load successfully for the page to render.
+  </Step>
+</Steps>
+
+---
+
+## Feature Issues
+
+### Danmaku comments not appearing
+
+Comments sent from `client.html` are not scrolling across `screen.html`.
+
+- Confirm that the message type is exactly `"danmaku"` — the handler in `screen.html` checks for `data.type === 'danmaku'`. A typo such as `"Danmaku"` or `"danmaku "` will cause the message to be silently ignored.
+- Open the browser console on `screen.html` and check for errors in the `shootDanmaku` function.
+- Try refreshing both pages to re-establish the connection, then send a test comment.
+
+```js
+// screen.html — danmaku handler (line 154)
+if (data.type === 'danmaku') {
+    shootDanmaku(data.content);
+}
+```
+
+---
+
+### Confetti / animation not working on client
+
+The success animation uses **canvas-confetti**, which requires a modern browser with `<canvas>` support.
+
+- Update to the latest version of Chrome or Firefox.
+- canvas-confetti does not work in Internet Explorer. If you are on IE, switch to a supported browser.
+- Check the browser console for errors from the `confetti()` call — a failed CDN load will produce a `confetti is not defined` error.
+
+<Tip>
+  If participants are on company-managed devices that restrict browser updates, ask them to use their personal phones instead. `client.html` is fully mobile-responsive.
+</Tip>
+
+---
+
+## Performance Issues
+
+### Performance lag with many participants
+
+`screen.html` manages a direct WebRTC data channel to every connected participant. As the number of connections grows, the browser's CPU and memory usage climbs.
+
+- **Reduce the participant count** by splitting large groups across multiple sessions with different peer IDs.
+- **Close other tabs and applications** on the presenter's machine before the session to free up resources.
+- **Use a more powerful machine** for the screen. A machine with a faster CPU and more RAM will handle more simultaneous connections before lagging.
+- **Avoid streaming video** or running other high-CPU tasks on the same machine during the session.
+
+<Warning>
+  Running hundreds of simultaneous WebRTC connections in a single browser tab is not a supported use case for any browser. If you regularly need audiences of that size, consider a purpose-built audience response platform designed for server-mediated connections.
+</Warning>

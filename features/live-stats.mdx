@@ -1,0 +1,153 @@
+---
+title: "Monitor Live Stats and Session Activity on Screen"
+description: "Track connected users, verify the peer ID, and read the live answer chart and activity log from the four built-in panels on screen.html."
+---
+
+`screen.html` is the presenter's command center. Beyond rendering danmaku and the 3D particle background, it exposes four information panels arranged in a three-column dashboard grid: System Status, Scan to Join, Live Stats, and Recent Activity. All panels update in real time using PeerJS events — no manual refresh required.
+
+## System Status panel
+
+The **System Status** panel lives in the left column and gives you an at-a-glance health check of the current session.
+
+### Connected user count
+
+The `#user-count` span displays the number of participants currently connected. It increments on every new incoming PeerJS connection and decrements when a connection closes:
+
+```javascript
+let connectedUsers = 0;
+
+peer.on('connection', (conn) => {
+    connectedUsers++;
+    document.getElementById('user-count').innerText = connectedUsers;
+
+    conn.on('close', () => {
+        connectedUsers--;
+        document.getElementById('user-count').innerText = connectedUsers;
+    });
+});
+```
+
+The count reflects active open connections only. A participant who closes their browser tab triggers the `close` event and is removed from the count automatically.
+
+### Peer ID
+
+The `#my-id` span shows the PeerJS ID that was successfully registered with the PeerJS signaling server. It updates once during page load via:
+
+```javascript
+peer.on('open', (id) => {
+    document.getElementById('my-id').innerText = id;
+});
+```
+
+The display screen always requests the fixed ID `screen-master-888`. Verify this value matches before handing participants the client URL — if the ID failed to register (e.g. due to a conflict), clients will be unable to connect.
+
+```javascript
+// screen.html — line 145
+const peer = new Peer('screen-master-888', { debug: 2 });
+```
+
+<Note>
+  PeerJS IDs are globally unique on the public PeerJS cloud. If another session is already using `screen-master-888`, registration will fail. In that case, change the ID string in both `screen.html` and `client.html` to a custom value before your session.
+</Note>
+
+## Scan to Join panel
+
+The **Scan to Join** panel sits below System Status in the left column. It contains a `div.qr-placeholder` — a dashed bordered area intended to hold a QR code image pointing to the `client.html` URL.
+
+```html
+<div class="qr-placeholder">QR Code Here</div>
+```
+
+To add your QR code, replace the placeholder div content with an `<img>` tag:
+
+```html
+<div class="qr-placeholder">
+  <img src="your-qr-code.png" alt="Scan to join" style="width:100%; height:100%; object-fit:contain;" />
+</div>
+```
+
+<Tip>
+  Generate the QR code from whatever URL participants need to open `client.html` — this is typically a local network IP address, a public tunnel URL, or a hosted static URL. Regenerate and replace the image whenever the URL changes.
+</Tip>
+
+## Live Stats chart
+
+The **Live Stats** panel occupies the top of the right column and renders a Chart.js bar chart with four bars representing options A, B, C, and D.
+
+### Chart configuration
+
+```javascript
+const chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: ['A', 'B', 'C', 'D'],
+        datasets: [{
+            label: 'Answers',
+            data: [0, 0, 0, 0],
+            backgroundColor: [
+                'rgba(0, 243, 255, 0.6)',   // A — neon cyan
+                'rgba(188, 19, 254, 0.6)',  // B — neon purple
+                'rgba(255, 99, 132, 0.6)',  // C — red
+                'rgba(255, 206, 86, 0.6)'   // D — yellow
+            ],
+            borderColor: ['#00f3ff', '#bc13fe', '#ff6384', '#ffce56'],
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: { beginAtZero: true },
+            x: { grid: { display: false } }
+        },
+        plugins: { legend: { display: false } }
+    }
+});
+```
+
+| Bar | Option | Fill color | Border color |
+|---|---|---|---|
+| 1 | A | `rgba(0, 243, 255, 0.6)` | `#00f3ff` |
+| 2 | B | `rgba(188, 19, 254, 0.6)` | `#bc13fe` |
+| 3 | C | `rgba(255, 99, 132, 0.6)` | `#ff6384` |
+| 4 | D | `rgba(255, 206, 86, 0.6)` | `#ffce56` |
+
+### How the chart updates
+
+Every time an answer arrives, `screen.html` maps the option letter to its zero-based index, increments the count, and calls `chart.update()`:
+
+```javascript
+const optionIndex = ['A', 'B', 'C', 'D'].indexOf(data.option);
+if (optionIndex !== -1) {
+    chart.data.datasets[0].data[optionIndex]++;
+    chart.update();
+}
+```
+
+Chart.js animates the bar height change automatically. The y-axis starts at zero and rescales upward as votes accumulate.
+
+## Recent Activity log
+
+The **Recent Activity** panel below Live Stats maintains a running list of every answer received during the session. New entries are prepended so the most recent answer always appears at the top:
+
+```javascript
+const log = document.getElementById('activity-log');
+log.innerHTML = `<li>[Answer] User picked ${data.option}</li>` + log.innerHTML;
+```
+
+Each line follows the format `[Answer] User picked X`, where `X` is the option letter (`A`, `B`, `C`, or `D`). The log starts with a single placeholder entry:
+
+```html
+<ul id="activity-log">
+  <li>[System] Awaiting connections...</li>
+</ul>
+```
+
+<Note>
+  The activity log grows unbounded for the lifetime of the page. For very high-traffic sessions consider adding a cap in JavaScript, for example trimming the list to the last 50 items after each insertion.
+</Note>
+
+<Warning>
+  The log stores option letters only, not participant identities. There is no built-in way to correlate a specific answer back to an individual participant.
+</Warning>

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "Psychology Live",
+  "theme": "aspen",
+  "colors": {
+    "primary": "#00f3ff",
+    "light": "#00f3ff",
+    "dark": "#bc13fe"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/lhuajun33-spec/psychology"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["index", "introduction", "quickstart"]
+          },
+          {
+            "group": "Components",
+            "pages": ["components/display-screen", "components/participant-panel"]
+          },
+          {
+            "group": "Features",
+            "pages": ["features/live-polling", "features/danmaku", "features/live-stats"]
+          },
+          {
+            "group": "Configuration",
+            "pages": ["configuration/peer-connection", "configuration/customization"]
+          },
+          {
+            "group": "Troubleshooting",
+            "pages": ["troubleshooting/faq", "troubleshooting/common-issues"]
+          }
+        ]
+      }
+    ]
+  }
+}

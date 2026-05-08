@@ -1,0 +1,55 @@
+{
+  "projectType": "frontend",
+  "projectName": "Psychology Live",
+  "projectDescription": "A real-time audience interaction system with a cyberpunk-style display screen and a mobile answer panel, enabling live Q&A polling and animated bullet-comment (danmaku) engagement during presentations.",
+  "theme": "aspen",
+  "primaryColor": "#00f3ff",
+  "lightColor": "#00f3ff",
+  "darkColor": "#bc13fe",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "quickstart"]
+          },
+          {
+            "group": "Components",
+            "pages": ["components/display-screen", "components/participant-panel"]
+          },
+          {
+            "group": "Features",
+            "pages": ["features/live-polling", "features/danmaku", "features/live-stats"]
+          },
+          {
+            "group": "Configuration",
+            "pages": ["configuration/peer-connection", "configuration/customization"]
+          },
+          {
+            "group": "Troubleshooting",
+            "pages": ["troubleshooting/faq", "troubleshooting/common-issues"]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Real-time Q&A polling with live answer bar chart",
+    "Animated danmaku (bullet comment) overlay on the display screen",
+    "3D cyberpunk particle background powered by Three.js",
+    "Peer-to-peer WebRTC connection via PeerJS (no server required)",
+    "Mobile-optimized participant answer panel with 3D tilt effect",
+    "Countdown timer and connected user count on the display screen",
+    "Confetti celebration animation on answer submission",
+    "QR code scan-to-join workflow"
+  ],
+  "publicApiSurface": [
+    "PeerJS connection: client connects to peer ID 'screen-master-888'",
+    "Message type 'answer': { type: 'answer', option: 'A' | 'B' | 'C' | 'D' }",
+    "Message type 'danmaku': { type: 'danmaku', content: string }",
+    "screen.html — main display screen (open in browser/projector)",
+    "client.html — participant answer panel (open on mobile device)"
+  ]
+}

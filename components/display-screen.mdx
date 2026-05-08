@@ -1,0 +1,147 @@
+---
+title: "Display Screen: 3D Cyberpunk Projector Dashboard"
+description: "Open screen.html on your projector to show a live answer chart, danmaku overlay, countdown timer, and connected user count during your session."
+---
+
+The display screen (`screen.html`) is the presenter-facing dashboard you open on your projector or large monitor before a session. It connects to participants over WebRTC using PeerJS, renders a 3D animated star field in the background, and updates a live bar chart, activity log, and danmaku overlay as participants send answers and bullet comments from their phones.
+
+## Layout
+
+The screen uses a three-column CSS grid (`grid-template-columns: 300px 1fr 300px`) that fills the full viewport height.
+
+<CardGroup cols={3}>
+  <Card title="Left column" icon="table-columns">
+    **System Status** panel and **Scan to Join** QR code panel stacked vertically.
+  </Card>
+  <Card title="Center column" icon="gauge">
+    Large **countdown timer** at the top and a reserved content area below.
+  </Card>
+  <Card title="Right column" icon="chart-bar">
+    **Live Stats** bar chart panel and **Recent Activity** log stacked vertically.
+  </Card>
+</CardGroup>
+
+All three columns use a glassmorphism style: `backdrop-filter: blur(10px)`, a `rgba(10, 15, 30, 0.4)` dark fill, and a cyan border with a glowing top edge gradient.
+
+## Opening the screen
+
+<Steps>
+  <Step title="Open screen.html in a browser">
+    Open `screen.html` directly in Chrome, Edge, or another Chromium-based browser. No server is required — it runs entirely from the local file system.
+  </Step>
+  <Step title="Enter fullscreen">
+    Press **F11** to enter fullscreen mode. This removes the browser chrome so the dashboard fills the entire display.
+  </Step>
+  <Step title="Confirm the peer ID">
+    Check the **System Status** panel in the left column. Once PeerJS initialises, the **Peer ID** field shows `screen-master-888`. This is the fixed ID participants connect to.
+  </Step>
+  <Step title="Share the participant URL">
+    Direct participants to open `client.html` on their phones, or display a QR code in the **Scan to Join** panel that links to `client.html`.
+  </Step>
+</Steps>
+
+<Note>
+  The screen must be open and showing `screen-master-888` before participants open `client.html`. PeerJS registers the fixed ID on load, and participants connect to it automatically.
+</Note>
+
+## System Status panel
+
+The **System Status** panel in the top-left corner shows three fields:
+
+| Field | Element ID | Description |
+|---|---|---|
+| Connection | — | Hardcoded `Online` in green text once PeerJS opens. |
+| Connected Users | `#user-count` | Increments by 1 each time a participant connects; decrements when they disconnect. |
+| Peer ID | `#my-id` | Populated by PeerJS on the `open` event. Always resolves to `screen-master-888`. |
+
+```javascript
+const peer = new Peer('screen-master-888', { debug: 2 }); // fixed screen ID
+peer.on('open', (id) => {
+  document.getElementById('my-id').innerText = id;
+});
+```
+
+## QR code panel
+
+Below the System Status panel sits the **Scan to Join** panel. It contains a placeholder `div.qr-placeholder` with the text `QR Code Here` and a caption `扫码进入答题端` ("Scan to enter the answer panel"). Replace the placeholder with a real QR code image pointing to your hosted `client.html` URL.
+
+## Countdown timer
+
+The center column opens with a `<div class="countdown" id="timer">` that displays `05:00` on load. The element uses a 4 rem bold font in neon purple (`#bc13fe`) with a matching text shadow. The timer value is static in the current implementation — wire up your own `setInterval` countdown logic as needed.
+
+## Live Stats chart
+
+The **Live Stats** panel in the top-right corner renders a Chart.js bar chart (`type: 'bar'`) with four bars labelled A, B, C, and D. Each bar has a distinct colour:
+
+| Option | Fill colour | Border colour |
+|---|---|---|
+| A | `rgba(0, 243, 255, 0.6)` | `#00f3ff` |
+| B | `rgba(188, 19, 254, 0.6)` | `#bc13fe` |
+| C | `rgba(255, 99, 132, 0.6)` | `#ff6384` |
+| D | `rgba(255, 206, 86, 0.6)` | `#ffce56` |
+
+When a participant submits an answer, the screen increments the matching index in `chart.data.datasets[0].data` and calls `chart.update()`:
+
+```javascript
+const optionIndex = ['A', 'B', 'C', 'D'].indexOf(data.option);
+if (optionIndex !== -1) {
+  chart.data.datasets[0].data[optionIndex]++;
+  chart.update();
+}
+```
+
+## Recent Activity log
+
+The **Recent Activity** panel below the chart contains an unordered list (`#activity-log`). Each incoming answer prepends a new list item at the top:
+
+```
+[Answer] User picked B
+```
+
+New entries are inserted with `log.innerHTML = \`<li>[Answer] User picked ${data.option}</li>\` + log.innerHTML`, so the most recent answer always appears first. The initial placeholder entry is `[System] Awaiting connections...`.
+
+## 3D particle background
+
+The screen uses Three.js to render 2000 cyan particles (`color: 0x00f3ff`, size 2) scattered randomly in a 2000 × 2000 × 2000 unit cube. The particle mesh rotates continuously:
+
+```javascript
+particles.rotation.x += 0.0005;
+particles.rotation.y += 0.001;
+```
+
+The renderer is positioned behind all dashboard panels using `z-index: -1` on `#canvas-container`. Exponential fog (`THREE.FogExp2(0x000000, 0.001)`) fades distant particles into the black background.
+
+## Danmaku overlay
+
+A full-screen `#danmaku-container` div sits above all other elements at `z-index: 100`. When the screen receives a `{ type: 'danmaku', content: '...' }` message from a participant, `shootDanmaku()` creates a `div.danmaku-item` element and animates it from right to left across a random vertical position:
+
+```css
+@keyframes slide {
+  from { transform: translateX(100vw); }
+  to   { transform: translateX(-100%); }
+}
+```
+
+Each comment lasts between 4 and 7 seconds, then the element is removed from the DOM. Text colour is chosen randomly from white, cyan, purple, yellow, or red.
+
+## PeerJS connection handling
+
+The screen uses a **fixed peer ID** of `screen-master-888`. It listens for incoming connections from participants and handles two message types on each connection's `data` event:
+
+```javascript
+conn.on('data', (data) => {
+  if (data.type === 'danmaku') {
+    shootDanmaku(data.content);
+  } else if (data.type === 'answer') {
+    // update chart and activity log
+  }
+});
+```
+
+<Warning>
+  If another browser tab or machine is already connected to PeerJS with the ID `screen-master-888`, the screen will fail to claim the ID and participants will not be able to connect. Make sure only one instance of `screen.html` is open at a time.
+</Warning>
+
+<Tip>
+  Open the browser DevTools console to see PeerJS debug output (level 2 is set by default). This is useful for diagnosing connection failures during setup.
+</Tip>

@@ -1,0 +1,91 @@
+---
+title: "Psychology Live: How It Works and Key Concepts"
+description: "Understand Psychology Live's two-file architecture, the fixed PeerJS peer ID, and the two message types that power live polling and danmaku comments."
+---
+
+Psychology Live turns any presentation into a live two-way experience. A host opens `screen.html` on a projector or large display; participants open `client.html` on their phones. The two sides connect directly over WebRTC using PeerJS — there is no backend server, no database, and no account to create. As soon as participants join, their poll answers and bullet comments appear on the display in real time.
+
+## Two components
+
+<CardGroup cols={2}>
+  <Card title="screen.html" icon="monitor">
+    The display side. Open this file in a browser on your projector or presentation screen. It shows the live bar chart, connected-user count, scrolling danmaku, a countdown timer, and a 3D animated star-field background rendered with Three.js.
+  </Card>
+  <Card title="client.html" icon="mobile">
+    The participant side. Participants open this file on their smartphones. It presents a multiple-choice question card with options A, B, C, and D, a SUBMIT button, and a danmaku text input at the bottom.
+  </Card>
+</CardGroup>
+
+## How the connection works
+
+Psychology Live uses [PeerJS 1.5.2](https://peerjs.com) to establish a browser-to-browser WebRTC data channel. The screen holds a **fixed peer ID** of `screen-master-888`. Each client connects to that ID as soon as it loads — no configuration needed on either side.
+
+```javascript client.html connection logic
+const peer = new Peer();
+
+peer.on('open', () => {
+  conn = peer.connect('screen-master-888');
+  conn.on('open', () => {
+    document.getElementById('status-text').innerText = 'Connected';
+  });
+});
+```
+
+<Note>
+  Because the peer ID is fixed, only one `screen.html` instance can hold the ID at a time. If you open a second screen tab while the first is still running, the second will fail to claim the ID.
+</Note>
+
+## Message types
+
+All data flows from `client.html` to `screen.html` as plain JavaScript objects over the PeerJS data channel. There are two message types:
+
+| Type | Payload shape | Effect on screen |
+|------|--------------|-----------------|
+| `answer` | `{ type: "answer", option: "A" \| "B" \| "C" \| "D" }` | Increments the corresponding bar in the Chart.js bar chart and appends an entry to the activity log |
+| `danmaku` | `{ type: "danmaku", content: "<text>" }` | Launches a bullet comment that slides across the full display from right to left |
+
+```javascript Message examples
+// Poll answer — sent when a participant taps SUBMIT
+conn.send({ type: 'answer', option: 'B' });
+
+// Bullet comment — sent from the danmaku input bar
+conn.send({ type: 'danmaku', content: 'Great question!' });
+```
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Live polling" icon="chart-bar">
+    A Chart.js bar chart on `screen.html` tracks votes for options A, B, C, and D in real time. Bar colors are neon blue (`#00f3ff`), purple (`#bc13fe`), red (`#ff6384`), and yellow (`#ffce56`).
+  </Card>
+  <Card title="Danmaku bullet comments" icon="message">
+    Text messages from participants slide across the display at randomized vertical positions and speeds (4–7 seconds per pass) in five colors: white, neon blue, neon purple, yellow, and red.
+  </Card>
+  <Card title="3D animated background" icon="cube">
+    Three.js renders 2,000 neon-blue (`#00f3ff`) particles in a rotating 3D star field behind the dashboard. The camera sits at z=1000 and the particle cloud rotates on both x and y axes continuously.
+  </Card>
+  <Card title="Confetti celebration" icon="sparkles">
+    When a participant submits an answer, `canvas-confetti` fires 150 particles in neon blue, neon purple, and white from 60% down the viewport, providing immediate positive feedback.
+  </Card>
+  <Card title="Countdown timer" icon="clock">
+    The center column of the display shows a large countdown, styled in neon purple (`#bc13fe`), starting at `05:00`. Use it to time a question round.
+  </Card>
+  <Card title="3D question card" icon="layers">
+    The participant question card responds to touch movement with a gyroscopic 3D tilt effect (`rotateX` / `rotateY`), giving the interface a tactile, immersive feel on mobile.
+  </Card>
+</CardGroup>
+
+## Visual design tokens
+
+The UI on both sides is built around a shared set of CSS custom properties:
+
+| Token | Value | Used for |
+|-------|-------|----------|
+| `--neon-blue` | `#00f3ff` | Borders, headings, primary highlights |
+| `--neon-purple` | `#bc13fe` | Countdown, secondary accents |
+| `--glass-bg` | `rgba(10, 15, 30, 0.4)` | Dashboard panel backgrounds |
+| `--bg` | `#090a0f` | Client page background |
+
+<Tip>
+  Both files are fully self-contained single-page HTML files with no build step. You can host them on any static file server, a local file system, or a CDN — as long as participants can reach `client.html` from their phones.
+</Tip>

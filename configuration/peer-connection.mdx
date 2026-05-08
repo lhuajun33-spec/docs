@@ -1,0 +1,144 @@
+---
+title: "Configure the PeerJS Connection Between Devices"
+description: "Learn how the fixed PeerJS peer ID connects participants to the display screen, and how to change it to run multiple simultaneous sessions."
+---
+
+Psychology Live connects participants directly to the presenter screen using [PeerJS](https://peerjs.com/), a WebRTC wrapper that enables real-time browser-to-browser data transfer with no backend server required. When a participant opens `client.html`, their browser establishes a direct data channel to the screen running `screen.html` — all answer submissions and danmaku messages travel over this peer connection.
+
+## How it works
+
+The screen acts as the host by registering a fixed, well-known peer ID. Participant clients look up that ID and open a data connection to it. Because both sides use the same hardcoded string, no signalling or discovery step is needed beyond the initial PeerJS handshake.
+
+<Steps>
+  <Step title="Screen registers a fixed peer ID">
+    When `screen.html` loads, it creates a `Peer` instance with the ID `screen-master-888`:
+
+    ```javascript
+    // screen.html — line 145
+    const peer = new Peer('screen-master-888', { debug: 2 });
+    ```
+
+    The `debug: 2` option instructs PeerJS to log all connection events to the browser console — useful when troubleshooting dropped connections.
+  </Step>
+
+  <Step title="Screen confirms registration">
+    Once PeerJS has registered the ID with its signalling server, the `open` event fires and the ID is displayed in the System Status panel:
+
+    ```javascript
+    // screen.html — line 146
+    peer.on('open', (id) => {
+        document.getElementById('my-id').innerText = id;
+    });
+    ```
+  </Step>
+
+  <Step title="Participants auto-connect">
+    When a participant opens `client.html`, it creates an anonymous `Peer` instance (no fixed ID) and immediately connects to `screen-master-888` inside its own `open` handler:
+
+    ```javascript
+    // client.html — lines 99–108
+    const peer = new Peer();
+    let conn = null;
+
+    peer.on('open', () => {
+        conn = peer.connect('screen-master-888');
+        conn.on('open', () => {
+            document.getElementById('status-indicator').classList.add('online');
+            document.getElementById('status-text').innerText = 'Connected';
+        });
+    });
+    ```
+  </Step>
+
+  <Step title="Screen tracks connections and disconnections">
+    Each inbound connection increments the user counter; closing the tab decrements it:
+
+    ```javascript
+    // screen.html — lines 149–169
+    let connectedUsers = 0;
+    peer.on('connection', (conn) => {
+        connectedUsers++;
+        document.getElementById('user-count').innerText = connectedUsers;
+
+        conn.on('data', (data) => { /* handle answer / danmaku */ });
+
+        conn.on('close', () => {
+            connectedUsers--;
+            document.getElementById('user-count').innerText = connectedUsers;
+        });
+    });
+    ```
+  </Step>
+</Steps>
+
+## Changing the peer ID
+
+If you need to run multiple simultaneous sessions — for example two parallel breakout rooms — each session must use a unique peer ID. You edit the ID string in both files.
+
+<Warning>
+  Both files must use the **same** string, or clients will fail to find the screen. Update `screen.html` and `client.html` together.
+</Warning>
+
+<CodeGroup>
+```javascript screen.html
+// Before
+const peer = new Peer('screen-master-888', { debug: 2 });
+
+// After — room A
+const peer = new Peer('psych-room-a', { debug: 2 });
+```
+
+```javascript client.html
+// Before
+conn = peer.connect('screen-master-888');
+
+// After — room A
+conn = peer.connect('psych-room-a');
+```
+</CodeGroup>
+
+Choose an ID that is unlikely to clash with other sessions on the shared PeerJS signalling server. A short random suffix (e.g. `psych-live-7f3k`) works well.
+
+## PeerJS CDN
+
+Both files load PeerJS from the [unpkg](https://unpkg.com/) CDN at a pinned version:
+
+```html
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+```
+
+Pinning to `@1.5.2` prevents unexpected breakage from upstream releases. If you need to upgrade, update both `screen.html` and `client.html` to the same new version.
+
+## Debug logging
+
+The `debug: 2` option on the screen peer writes detailed connection lifecycle messages to the browser console — peer registration, ICE negotiation, data channel opens, and errors. This option is only set on the screen; client peers use the PeerJS default (no debug output).
+
+| Level | Output |
+|-------|--------|
+| `0`   | No logging |
+| `1`   | Errors only |
+| `2`   | Errors and warnings (connection events) |
+| `3`   | All messages |
+
+To silence the screen console in a production presentation, change `debug: 2` to `debug: 0`.
+
+## Connection events reference
+
+| Event | File | Fires when |
+|-------|------|------------|
+| `peer.on('open')` | `screen.html` | Screen's peer ID is registered and ready |
+| `peer.on('open')` | `client.html` | Client's anonymous peer is ready; triggers connect |
+| `conn.on('open')` | `client.html` | Data channel to screen is established |
+| `conn.on('close')` | `screen.html` | A participant's tab closes or network drops |
+
+## Network requirements
+
+WebRTC works on most local networks and over the internet without any special configuration. The PeerJS signalling server handles the initial handshake; after that, data flows directly between browsers.
+
+<Note>
+  Some corporate or university firewalls block the UDP ports used by WebRTC. If participants cannot connect, ask your IT team to allow WebRTC traffic, or use a mobile data connection as a fallback.
+</Note>
+
+<Tip>
+  For large events held in venues with restrictive Wi-Fi, test the peer connection with a few devices before the session begins. Open the browser console on `screen.html` (debug level 2) to see whether ICE candidates are being exchanged successfully.
+</Tip>

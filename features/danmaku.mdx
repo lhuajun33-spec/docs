@@ -1,0 +1,147 @@
+---
+title: "Danmaku: Animated Bullet Comments on Your Screen"
+description: "Let participants send short messages from client.html that scroll across the display screen in real time as animated neon bullet comments."
+---
+
+Danmaku (弹幕) is a display style borrowed from live-streaming culture where audience messages scroll horizontally across the screen from right to left, layered on top of whatever content is already showing. In Psychology Live, any participant connected to `client.html` can fire a danmaku message at any time — it appears on `screen.html` within milliseconds, without interrupting the polling question or other screen elements.
+
+## Sending a danmaku message
+
+At the bottom of `client.html` sits a persistent input bar. To send a comment:
+
+<Steps>
+  <Step title="Type your message">
+    Tap the input field labelled `发送炫酷弹幕...` (Send cool danmaku...) at the bottom of the screen and type your message.
+  </Step>
+  <Step title="Tap 发送 (Send)">
+    Tap the **发送** button to the right of the input. The `sendDanmaku()` function trims whitespace and, if the connection to the screen is open, dispatches the message:
+
+    ```javascript
+    function sendDanmaku() {
+        const input = document.getElementById('dm-input');
+        const text = input.value.trim();
+        if (text && conn && conn.open) {
+            conn.send({ type: 'danmaku', content: text });
+            input.value = '';
+        }
+    }
+    ```
+
+    The input field clears automatically after sending.
+  </Step>
+</Steps>
+
+<Note>
+  Messages are only sent when `conn.open` is `true`. If the status bar at the top of `client.html` still shows a red dot, the participant is not yet connected and tapping **发送** will do nothing. Ask them to wait for the green **Connected** indicator before sending.
+</Note>
+
+## Message format
+
+Every danmaku message is a plain JavaScript object sent over the PeerJS data channel:
+
+```javascript
+{ type: 'danmaku', content: string }
+```
+
+`screen.html` checks `data.type === 'danmaku'` and passes `data.content` directly to `shootDanmaku()`.
+
+## How the screen renders danmaku
+
+When `shootDanmaku(text)` is called, it creates a new `div.danmaku-item` element and appends it to `#danmaku-container`, a full-screen overlay that sits at `z-index: 100` above all other panels.
+
+```javascript
+function shootDanmaku(text) {
+    const container = document.getElementById('danmaku-container');
+    const el = document.createElement('div');
+    el.className = 'danmaku-item';
+    el.innerText = text;
+    el.style.top = Math.random() * 80 + '%';
+    el.style.color = colors[Math.floor(Math.random() * colors.length)];
+    const duration = Math.random() * 3 + 4; // 4–7 seconds
+    el.style.animationDuration = duration + 's';
+    container.appendChild(el);
+    setTimeout(() => el.remove(), duration * 1000);
+}
+```
+
+Each item is removed from the DOM once its animation completes, so there is no memory accumulation during long sessions.
+
+### Animation
+
+The slide animation is defined in CSS and runs once in the `linear` timing function:
+
+```css
+.danmaku-item {
+    position: absolute;
+    white-space: nowrap;
+    font-size: 28px;
+    font-weight: bold;
+    text-shadow: 2px 2px 4px #000;
+    animation: slide linear forwards;
+}
+
+@keyframes slide {
+    from { transform: translateX(100vw); }
+    to   { transform: translateX(-100%); }
+}
+```
+
+| Property | Value |
+|---|---|
+| Start position | 100 vw (off-screen right) |
+| End position | -100 % of element width (off-screen left) |
+| Duration | 4 – 7 seconds (random per message) |
+| Vertical position | 0 – 80 % of screen height (random) |
+| Font size | 28 px, bold |
+| Drop shadow | 2 px 2 px 4 px black |
+
+### Color palette
+
+Each danmaku item is assigned one color at random from the five-color palette:
+
+```javascript
+const colors = ['#ffffff', '#00f3ff', '#bc13fe', '#ffff00', '#ff0055'];
+```
+
+<Tabs>
+  <Tab title="White">
+    `#ffffff` — neutral, readable against the dark background.
+  </Tab>
+  <Tab title="Neon cyan">
+    `#00f3ff` — matches the primary brand color used throughout the interface.
+  </Tab>
+  <Tab title="Neon purple">
+    `#bc13fe` — the secondary brand accent color.
+  </Tab>
+  <Tab title="Yellow">
+    `#ffff00` — high-visibility warm accent.
+  </Tab>
+  <Tab title="Hot pink">
+    `#ff0055` — bold contrast color for energy and variety.
+  </Tab>
+</Tabs>
+
+## Best practices
+
+<Tip>
+  Encourage participants to keep danmaku messages short — ideally under 15 characters. Long messages take the same time to cross the screen as short ones, so they can feel rushed and become hard to read.
+</Tip>
+
+<Tip>
+  Brief the audience before the session that danmaku is for reactions and quick comments, not full sentences. Phrases like "Great point!", "👍", or a single emoji work best.
+</Tip>
+
+<Warning>
+  There is no server-side content filter. In open public sessions, consider briefing participants on appropriate language before enabling the danmaku feature.
+</Warning>
+
+## Customizing the color palette
+
+To change the colors danmaku messages can appear in, edit the `colors` array at the top of the `<script>` block in `screen.html`:
+
+```javascript
+// screen.html — line 130
+const colors = ['#ffffff', '#00f3ff', '#bc13fe', '#ffff00', '#ff0055'];
+```
+
+Replace any hex value with your own. The array can hold as few as one color or as many as you like; the selection is uniformly random.

@@ -1,0 +1,122 @@
+---
+title: "Quickstart: Get Psychology Live Running in Minutes"
+description: "Open screen.html on your display, share client.html with participants, and watch live poll results and danmaku comments appear in real time."
+---
+
+You can have Psychology Live up and running in under five minutes. There is no installation, no server to configure, and no account to create. All you need are the two HTML files, a browser, and a network that lets participants reach `client.html` on their phones.
+
+## Prerequisites
+
+Before you begin, make sure you have the following:
+
+- **A modern browser** — Chrome or Firefox is recommended on both the display machine and participant phones. The app uses WebRTC data channels, which require a browser that supports PeerJS 1.5.2.
+- **A projector or large display** — connected to the machine that will run `screen.html`.
+- **Participants with smartphones** — any phone with a modern browser works. Participants do not need to install anything.
+- **A shared network or public URL** — participants must be able to open `client.html` in their browser. A local Wi-Fi network, a static file host, or any HTTP server will work.
+
+<Warning>
+  PeerJS requires access to its cloud signaling server (`0.peerjs.com`) to broker the initial WebRTC handshake. Both the display machine and participant phones must have internet access, even though the data channel itself is peer-to-peer once connected.
+</Warning>
+
+## Setup steps
+
+<Steps>
+  <Step title="Download or clone the project files">
+    Obtain `screen.html` and `client.html` and place them in the same directory on your machine.
+
+    Download the project as a ZIP from the repository and extract it, or clone it with Git if you have the repository URL. No build step or dependency installation is required — both files are self-contained HTML pages.
+
+    ```bash
+    # Example if you have the Git repository URL
+    git clone https://github.com/your-org/psychology-live.git
+    cd psychology-live
+    ```
+  </Step>
+
+  <Step title="Open screen.html on the presentation display">
+    On the machine connected to your projector or large screen, open `screen.html` directly in Chrome or Firefox.
+
+    ```bash
+    # macOS
+    open screen.html
+
+    # Linux
+    xdg-open screen.html
+
+    # Windows — double-click screen.html, or run:
+    start screen.html
+    ```
+
+    Once the page loads, look at the **System Status** panel in the top-left corner. The peer ID displayed there will read:
+
+    ```
+    screen-master-888
+    ```
+
+    This fixed ID is what every participant's phone will connect to automatically. You do not need to share it manually — it is hard-coded into `client.html`.
+
+    <Note>
+      The Three.js star-field background and the Chart.js bar chart both initialize immediately on load. If the peer ID shows "Initializing..." for more than a few seconds, check that the display machine has internet access.
+    </Note>
+  </Step>
+
+  <Step title="Share client.html with participants">
+    Participants need to open `client.html` in their phone browser. The easiest ways to share it:
+
+    <CodeGroup>
+
+    ```bash Serve locally over Wi-Fi
+    # Python 3 — serves on your local IP, port 8000
+    python3 -m http.server 8000
+    # Participants open: http://<your-local-ip>:8000/client.html
+    ```
+
+    ```bash npx serve (Node.js)
+    npx serve .
+    # Participants open: http://<your-local-ip>:3000/client.html
+    ```
+
+    </CodeGroup>
+
+    If you are hosting on a public URL, simply send participants a direct link to `client.html`. You can also display a QR code — the **Scan to Join** panel on `screen.html` includes a placeholder for one.
+
+    <Tip>
+      Use a QR code generator to encode the full URL to `client.html`, then display the image inside the dashed QR placeholder on the left column of `screen.html`. Participants can scan it without you having to read out a URL.
+    </Tip>
+  </Step>
+
+  <Step title="Participants connect on their phones">
+    When a participant opens `client.html`, the page immediately attempts to connect to peer ID `screen-master-888`. The status bar at the top of the page shows the current state:
+
+    - Red dot + "Connecting to Screen..." — handshake in progress
+    - Green dot + "Connected" — data channel is open, the participant is ready
+
+    Once connected, the participant sees a multiple-choice question card with four options:
+
+    ```
+    A  B  C  D
+    ```
+
+    They tap an option to select it (the button highlights in neon blue with a `0 0 15px rgba(0, 243, 255, 0.4)` glow), then tap **SUBMIT** to send their answer. The card also has a danmaku input bar at the bottom where they can type a comment and tap **发送** (Send) to fire it across the display.
+
+    The **Connected Users** counter on `screen.html` increments by one for each new participant, and decrements when a participant closes their tab.
+  </Step>
+
+  <Step title="Watch results appear live on screen.html">
+    As participants interact, `screen.html` updates in real time with no page refresh:
+
+    - **Poll answers** — the Chart.js bar chart increments the bar for the chosen option (A, B, C, or D) and the **Recent Activity** log appends a line such as `[Answer] User picked B`.
+    - **Danmaku** — bullet comments slide across the full screen from right to left at a random vertical position, in one of five colors (`#ffffff`, `#00f3ff`, `#bc13fe`, `#ffff00`, `#ff0055`), over 4–7 seconds.
+    - **Confetti on the participant's phone** — the moment a participant submits an answer, `canvas-confetti` fires 150 particles in neon blue, purple, and white, and a **SUCCESS** overlay fades in. After 2.5 seconds the UI resets so the participant can answer again.
+
+    <Note>
+      The countdown timer displayed in the center column starts at `05:00` and is purely visual in the current version — it is not wired to PeerJS events. You can use it as a visual cue to signal when to stop accepting answers.
+    </Note>
+  </Step>
+</Steps>
+
+## What to do next
+
+- Customize the question text and options in `client.html` by editing the `.question-title` and `.option-btn` elements.
+- Replace the QR code placeholder in `screen.html`'s **Scan to Join** panel with a real QR code image pointing to your hosted `client.html` URL.
+- Explore the [introduction](/introduction) page to understand all message types and design tokens in depth.

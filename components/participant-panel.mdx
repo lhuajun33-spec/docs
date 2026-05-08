@@ -1,0 +1,168 @@
+---
+title: "Participant Panel: Mobile Answer and Danmaku Interface"
+description: "Share client.html with your audience so they can select answers, submit votes, and send danmaku comments to the display screen from their phones."
+---
+
+The participant panel (`client.html`) is the page you share with your audience. Participants open it on any modern mobile browser, and it automatically connects to the display screen over WebRTC. From there, they can tap an answer option, submit it with a single button, and send animated bullet comments (danmaku) that scroll across the main display in real time.
+
+## Opening the panel
+
+<Steps>
+  <Step title="Make screen.html is running first">
+    Open `screen.html` on your presentation computer before sharing the participant link. The display screen must be active and holding the peer ID `screen-master-888` before any participant can connect.
+  </Step>
+  <Step title="Share the client.html URL">
+    Host `client.html` on any static file server (or use a service like GitHub Pages), then share the URL with your audience — via QR code, a short link, or projected on screen.
+  </Step>
+  <Step title="Participants open it on their phones">
+    Any modern mobile browser works: Chrome for Android, Safari for iOS, Firefox for Android. No app install is needed.
+  </Step>
+  <Step title="Wait for the green dot">
+    When the connection to `screen-master-888` succeeds, the status dot in the top bar turns green and the status text changes to **Connected**.
+  </Step>
+</Steps>
+
+<Note>
+  `client.html` uses `user-scalable=no` in its viewport meta tag, which locks pinch-zoom. This keeps the 3D tilt effect smooth on mobile and prevents accidental zooming during answer selection.
+</Note>
+
+## Status bar
+
+A sticky bar at the top of the page shows the connection state. It contains two elements:
+
+| Element | ID | Offline state | Online state |
+|---|---|---|---|
+| Status dot | `#status-indicator` | Red fill, red glow | Green fill (`#0f0`), green glow |
+| Status text | `#status-text` | `Connecting to Screen...` | `Connected` |
+
+The dot gains the `.online` CSS class when PeerJS fires the connection `open` event:
+
+```javascript
+conn.on('open', () => {
+  document.getElementById('status-indicator').classList.add('online');
+  document.getElementById('status-text').innerText = 'Connected';
+});
+```
+
+## Question card
+
+The main content area is a `.question-card` element that takes up the available height between the status bar and the danmaku bar. It contains:
+
+- **Question title** — a `div.question-title` with `transform: translateZ(30px)` so it visually floats forward in 3D space.
+- **Four option buttons** — `button.option-btn` elements with `data-val` attributes set to `A`, `B`, `C`, and `D`.
+- **SUBMIT button** — a `button#submit-btn` that is disabled by default and enabled only after an option is selected.
+
+The default question displayed in the source is a Shimano seminar question, but you can edit the `div.question-title` text and the button labels directly in `client.html` to match your own content.
+
+## Option selection
+
+Tap any option button to select it. The button gains the `.selected` class, which applies a cyan highlight:
+
+```css
+.option-btn.selected {
+  background: rgba(0, 243, 255, 0.2);
+  border-color: #00f3ff;
+  box-shadow: 0 0 15px rgba(0, 243, 255, 0.4);
+}
+```
+
+Selecting a new option clears the `.selected` class from all other buttons before applying it to the tapped one. Selecting any option also enables the **SUBMIT** button by setting `submitBtn.disabled = false`.
+
+## 3D tilt effect
+
+The question card responds to touch movement with a gyroscope-like 3D tilt. As you drag your finger across the screen, the card rotates on the X and Y axes:
+
+```javascript
+document.addEventListener('touchmove', (e) => {
+  const touch = e.touches[0];
+  const xAxis = (window.innerWidth / 2 - touch.pageX) / 25;
+  const yAxis = (window.innerHeight / 2 - touch.pageY) / 25;
+  card.style.transform = `rotateY(${xAxis}deg) rotateX(${yAxis}deg)`;
+});
+
+document.addEventListener('touchend', () => {
+  card.style.transform = 'rotateY(0deg) rotateX(0deg)';
+});
+```
+
+The card snaps back to flat when you lift your finger. The effect is enabled by `perspective: 1000px` on the `body` element and `transform-style: preserve-3d` on the card itself.
+
+## Submitting an answer
+
+Tap **SUBMIT** after selecting an option. The button sends an answer message to the display screen and then triggers the success celebration:
+
+```javascript
+conn.send({ type: 'answer', option: selectedOption });
+```
+
+After sending, the panel:
+
+1. Fades in a full-screen **SUCCESS overlay** (`#success-overlay`) with a `SUCCESS` heading in cyan and the caption `答案已传送至中控` ("Answer sent to control").
+2. Fires a canvas-confetti burst — 150 particles in cyan (`#00f3ff`), purple (`#bc13fe`), and white — spread at 100° from 60% down the screen.
+3. After 2.5 seconds, fades the overlay out, clears the selected option, and re-disables the **SUBMIT** button.
+
+<Tip>
+  The submit button stays disabled after a successful submission. This prevents duplicate answers from the same device within a single question cycle. To allow re-submission (for a new question), reload the page or add your own reset logic.
+</Tip>
+
+## Danmaku bar
+
+At the bottom of the screen, a sticky bar lets participants send bullet comments to the display screen. It contains:
+
+| Element | Description |
+|---|---|
+| `input.danmaku-input` | Text field with the placeholder `发送炫酷弹幕...` ("Send a cool danmaku..."). |
+| `button.send-btn` | Labelled **发送** ("Send"). Calls `sendDanmaku()` on click. |
+
+The `sendDanmaku()` function reads the input value, trims whitespace, and sends it if the connection is open:
+
+```javascript
+function sendDanmaku() {
+  const text = document.getElementById('dm-input').value.trim();
+  if (text && conn && conn.open) {
+    conn.send({ type: 'danmaku', content: text });
+    document.getElementById('dm-input').value = '';
+  }
+}
+```
+
+The display screen receives this message and immediately animates the text as a bullet comment scrolling right to left across the full display.
+
+<Warning>
+  Danmaku messages are only sent if the PeerJS connection is open. If the status dot is red, the message is silently dropped. Ask participants to reload the page if they lose connection.
+</Warning>
+
+## PeerJS connection
+
+On load, `client.html` creates a PeerJS peer with a randomly assigned ID, then immediately dials the display screen:
+
+```javascript
+const peer = new Peer(); // random client ID assigned by PeerJS
+let conn = null;
+
+peer.on('open', () => {
+  conn = peer.connect('screen-master-888');
+  conn.on('open', () => {
+    // update status bar to green / Connected
+  });
+});
+```
+
+No configuration is needed on the participant side — the target peer ID `screen-master-888` is hardcoded, and PeerJS uses its default public signalling server to broker the WebRTC handshake.
+
+## Mobile tips
+
+<CardGroup cols={2}>
+  <Card title="No install required" icon="circle-check">
+    Works in any modern mobile browser. Participants open a URL — there is no app to download.
+  </Card>
+  <Card title="iOS Safari support" icon="apple">
+    WebRTC is supported in Safari 11+. Make sure participants are on iOS 11 or later.
+  </Card>
+  <Card title="Stay on the page" icon="mobile">
+    Switching away from the browser tab may suspend the WebRTC connection on some mobile OSes. Ask participants to keep the tab open.
+  </Card>
+  <Card title="Stable network" icon="wifi">
+    PeerJS uses WebRTC which requires a stable network. If participants are on a flaky connection, the status dot may turn red. Reloading the page re-establishes the connection.
+  </Card>
+</CardGroup>

@@ -1,0 +1,184 @@
+---
+title: "Customize Questions, Colors, QR Code, and Timer"
+description: "Edit the poll question and option labels, restyle both pages with CSS variables, add a real QR code, and wire up a live countdown timer."
+---
+
+Psychology Live is designed to be edited directly in the HTML source. There is no build step or configuration file — every visual and content change you need is a small, targeted edit to `screen.html` or `client.html`. The sections below walk through each customization area in the order you are most likely to need them.
+
+## Editing the question and answer options
+
+All question content lives in `client.html`. The question text and the four answer buttons are the only parts that change between sessions.
+
+<Steps>
+  <Step title="Change the question text">
+    Find the `.question-title` div and replace its inner text:
+
+    ```html
+    <!-- client.html — line 51 -->
+    <div class="question-title">
+      1. 本次 Shimano 研讨会项目中，企业的核心转型方向是？
+    </div>
+    ```
+
+    Replace the string between the tags with your own question. You can include a question number prefix or omit it.
+  </Step>
+
+  <Step title="Change the answer options">
+    Each button carries a `data-val` attribute (`A`, `B`, `C`, or `D`) that is sent to the screen when a participant submits. Edit both the `data-val` and the visible button label:
+
+    ```html
+    <!-- client.html — lines 53–56 -->
+    <button class="option-btn" data-val="A">A. 纯硬件制造</button>
+    <button class="option-btn" data-val="B">B. 数字化与生态构建</button>
+    <button class="option-btn" data-val="C">C. 放弃自行车业务</button>
+    <button class="option-btn" data-val="D">D. 降价促销策略</button>
+    ```
+
+    You can use more descriptive labels — the `data-val` is what the screen chart tracks, so keep `A`/`B`/`C`/`D` consistent between the button attributes and the chart labels in `screen.html`.
+
+    <Warning>
+      The system is built for exactly **4 options**. The chart in `screen.html` is initialised with four labels (`['A', 'B', 'C', 'D']`) and the answer handler maps submitted values to those indices. Adding or removing buttons requires matching changes in both files.
+    </Warning>
+  </Step>
+</Steps>
+
+## Restyling with CSS variables
+
+Both files expose their brand colors as CSS custom properties at the top of their `<style>` block. Changing a variable automatically updates every element that references it.
+
+<Tabs>
+  <Tab title="client.html">
+    ```css
+    /* client.html — line 10 */
+    :root {
+      --bg: #090a0f;       /* Page background */
+      --primary: #00f3ff;  /* Cyan accent — selected option border, send button */
+      --secondary: #bc13fe; /* Purple accent — submit button gradient end */
+    }
+    ```
+
+    `--primary` and `--secondary` together form the submit button gradient:
+
+    ```css
+    background: linear-gradient(45deg, var(--primary), var(--secondary));
+    ```
+  </Tab>
+  <Tab title="screen.html">
+    ```css
+    /* screen.html — lines 10–13 */
+    :root {
+      --neon-blue: #00f3ff;              /* Panel borders, headings, glow effects */
+      --neon-purple: #bc13fe;            /* Countdown timer color */
+      --glass-bg: rgba(10, 15, 30, 0.4); /* Frosted-glass panel background */
+    }
+    ```
+
+    `--glass-bg` controls the translucency of every `.panel` card. Increase the alpha value (the last number) to make panels more opaque, or decrease it to make them more transparent.
+  </Tab>
+</Tabs>
+
+<Tip>
+  Keep `--primary` in `client.html` and `--neon-blue` in `screen.html` the same hex value so the two pages feel visually consistent to participants looking between their phone and the projected screen.
+</Tip>
+
+## Changing the particle and confetti colors
+
+### 3D particle background (screen.html)
+
+The Three.js particle field uses `PointsMaterial` with a hardcoded color value. To change the star color, edit the hex literal passed to the `color` property:
+
+```javascript
+// screen.html — line 97
+const material = new THREE.PointsMaterial({
+    color: 0x00f3ff, // Change this hex value
+    size: 2,
+    transparent: true,
+    opacity: 0.8
+});
+```
+
+Note that Three.js uses `0x` prefix notation rather than CSS `#` notation: `#00f3ff` becomes `0x00f3ff`.
+
+### Confetti burst (client.html)
+
+When a participant submits an answer, a confetti animation fires. The colors array controls which hues appear:
+
+```javascript
+// client.html — lines 133–138
+confetti({
+    particleCount: 150,
+    spread: 100,
+    origin: { y: 0.6 },
+    colors: ['#00f3ff', '#bc13fe', '#ffffff']
+});
+```
+
+Add, remove, or replace hex strings in the `colors` array. Standard CSS hex colors work here.
+
+## Adding a QR code
+
+`screen.html` includes a placeholder div in the "Scan to Join" panel. Replace it with an `<img>` tag pointing to a generated QR code image.
+
+<Steps>
+  <Step title="Generate a QR code">
+    Use any QR code generator to create an image that encodes the URL where you are hosting `client.html`. Save the image file alongside `screen.html`, or use a hosted image URL.
+  </Step>
+
+  <Step title="Replace the placeholder">
+    Find the `.qr-placeholder` div in `screen.html`:
+
+    ```html
+    <!-- screen.html — line 55 -->
+    <div class="qr-placeholder">QR Code Here</div>
+    ```
+
+    Replace it with an `<img>` tag:
+
+    ```html
+    <img
+      src="qrcode.png"
+      alt="Scan to join"
+      style="width: 100%; border-radius: 8px;"
+    />
+    ```
+
+    Use the same `width: 100%` style so the image fills the panel width automatically.
+  </Step>
+</Steps>
+
+<Note>
+  If you are hosting `client.html` on a local server, generate the QR code with your machine's local IP address (e.g. `http://192.168.1.42/client.html`) so that phones on the same Wi-Fi network can reach it.
+</Note>
+
+## Countdown timer
+
+The timer display is a static string in the center column of `screen.html`:
+
+```html
+<!-- screen.html — line 61 -->
+<div class="countdown" id="timer">05:00</div>
+```
+
+The `05:00` text is hardcoded — it does not tick on its own. To add a live countdown, insert a JavaScript block after the existing `<script>` section:
+
+```javascript
+// Add this after the PeerJS block in screen.html
+(function startCountdown() {
+    const timerEl = document.getElementById('timer');
+    let totalSeconds = 5 * 60; // 5 minutes
+
+    const interval = setInterval(() => {
+        totalSeconds--;
+        if (totalSeconds <= 0) {
+            clearInterval(interval);
+            timerEl.innerText = '00:00';
+            return;
+        }
+        const m = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+        const s = String(totalSeconds % 60).padStart(2, '0');
+        timerEl.innerText = `${m}:${s}`;
+    }, 1000);
+})();
+```
+
+Change `5 * 60` to any number of seconds to adjust the starting duration. To start the timer only when the first participant connects, move the `startCountdown()` call inside the `peer.on('connection', ...)` handler and guard it with a flag so it only fires once.

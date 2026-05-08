@@ -1,0 +1,122 @@
+---
+title: "Psychology Live FAQ: Sessions, Connections, and Limits"
+description: "Answers about connectivity needs, participant limits, running multiple sessions, iOS support, resetting votes, and expanding beyond 4 answer options."
+---
+
+Psychology Live runs entirely in the browser using WebRTC peer-to-peer connections brokered by PeerJS. Most questions about the system come down to how those connections are established, how many peers a single browser can handle, and how to adapt the default configuration for your specific situation. The answers below cover the most frequently raised topics.
+
+<AccordionGroup>
+  <Accordion title="Do I need a server or internet connection?">
+    Psychology Live uses PeerJS, which relies on WebRTC for data transport. The default configuration connects to the **PeerJS cloud signaling server** to exchange connection details between peers — so yes, both `screen.html` and `client.html` need internet access to establish their initial handshake.
+
+    If you need a fully offline or LAN-only deployment, you must run your own local PeerJS server and point both files at it by passing a `host` and `port` option to the `Peer` constructor.
+
+    ```js
+    // Example: point both files at a local PeerJS server
+    const peer = new Peer('screen-master-888', {
+      host: '192.168.1.100',
+      port: 9000,
+      path: '/myapp'
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="How many participants can join?">
+    There is no hard cap enforced by the software. In practice:
+
+    - **Dozens of participants** work well without noticeable strain.
+    - **Hundreds of participants** can stress the presenter's browser because `screen.html` maintains a separate WebRTC connection to every client.
+
+    The bottleneck is the machine running `screen.html`, not the PeerJS cloud. If you expect a very large audience, run the screen on a powerful machine and close all other browser tabs and applications.
+
+    <Note>
+      Each participant adds one WebRTC data channel to the screen's browser process. Monitor CPU and memory usage during your rehearsal to find the practical limit for your hardware.
+    </Note>
+  </Accordion>
+
+  <Accordion title="Can I run multiple sessions at once?">
+    Yes. The default peer ID for the screen is `screen-master-888`, hardcoded in both files:
+
+    ```js
+    // screen.html — line 145
+    const peer = new Peer('screen-master-888', { debug: 2 });
+
+    // client.html — line 104
+    conn = peer.connect('screen-master-888');
+    ```
+
+    To run a second simultaneous session, change this string to a unique value in **both** files for that session — for example `screen-master-workshop-2`. Make sure every client file for that session targets the matching ID.
+  </Accordion>
+
+  <Accordion title="Why doesn't the client connect?">
+    The status bar in `client.html` will stay on **"Connecting to Screen..."** if the connection cannot be established. Work through these checks in order:
+
+    <Steps>
+      <Step title="Open screen.html first">
+        `screen.html` registers the fixed peer ID `screen-master-888` with the PeerJS signaling server. If it is not open before clients load, there is no peer to connect to.
+      </Step>
+      <Step title="Verify internet access on both devices">
+        Both the presenter's machine and each participant's device must be able to reach the PeerJS cloud signaling servers. Test by opening any external website.
+      </Step>
+      <Step title="Check firewall rules">
+        WebRTC requires certain UDP ports and STUN/TURN access. Corporate or school firewalls sometimes block these. Ask your network administrator to allow WebRTC traffic, or switch to a network without restrictions.
+      </Step>
+      <Step title="Refresh both pages">
+        If the peer ID was already registered from a previous session that did not close cleanly, refreshing `screen.html` re-registers it. Then refresh `client.html` to reconnect.
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="Can participants answer multiple times?">
+    Yes. The current version does not restrict how many times a participant can submit an answer. Each submission increments the chart count on `screen.html` and triggers the confetti animation on `client.html`. If you need to enforce single submissions, you would need to add that logic manually — for example by disabling the submit button permanently after the first successful send, rather than re-enabling it after 2.5 seconds.
+  </Accordion>
+
+  <Accordion title="Does it work on iOS Safari?">
+    PeerJS and WebRTC are supported on **iOS 14 and later** in Safari. Participants on iOS 13 or earlier may encounter connection failures or missing features.
+
+    <Warning>
+      Some older iOS versions have incomplete WebRTC implementations. If a participant reports that they cannot connect, ask them to check their iOS version and update if possible, or try a different device.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="How do I reset the vote counts?">
+    Refresh `screen.html`. The chart data array is initialized to `[0, 0, 0, 0]` on page load:
+
+    ```js
+    // screen.html — chart initialization
+    data: [0, 0, 0, 0]
+    ```
+
+    Refreshing the page resets all counts to zero and re-registers the peer ID. All currently connected clients will need to refresh their pages as well to re-establish the connection.
+  </Accordion>
+
+  <Accordion title="Can I add more than 4 answer options?">
+    Yes, but it requires manual edits to both files:
+
+    1. **In `client.html`**, add new `<button>` elements inside `#options-container` with the appropriate `data-val` attributes:
+
+    ```html
+    <!-- client.html — add after option D -->
+    <button class="option-btn" data-val="E">E. Your new option</button>
+    ```
+
+    2. **In `screen.html`**, extend the chart `labels` array and the `data` array to match:
+
+    ```js
+    // screen.html — update labels and initial data
+    labels: ['A', 'B', 'C', 'D', 'E'],
+    data: [0, 0, 0, 0, 0],
+    ```
+
+    3. Also update the `['A', 'B', 'C', 'D']` array in the answer-handling logic so the new option is recognised:
+
+    ```js
+    // screen.html — extend the options array
+    const optionIndex = ['A', 'B', 'C', 'D', 'E'].indexOf(data.option);
+    ```
+
+    <Tip>
+      Add a matching background and border color entry in the `backgroundColor` and `borderColor` arrays of the chart dataset so your new bar has a distinct color.
+    </Tip>
+  </Accordion>
+</AccordionGroup>

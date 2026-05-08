@@ -1,0 +1,119 @@
+---
+title: "Run Live Audience Polls and Track Answers in Real Time"
+description: "Let participants vote on a four-option question from their phones and watch the bar chart update live on the display screen the moment each answer arrives."
+---
+
+The live polling feature connects every participant's device directly to the display screen over a peer-to-peer channel. When a participant selects one of four options and taps **SUBMIT**, the answer travels instantly to `screen.html`, where Chart.js increments the matching bar and appends a line to the activity log — all without a backend server.
+
+## How it works
+
+<Steps>
+  <Step title="Participant opens client.html">
+    The participant opens `client.html` on their mobile browser. The page automatically connects to the display screen using the fixed PeerJS ID `screen-master-888`. The status indicator in the top bar turns green once the connection opens.
+  </Step>
+  <Step title="Participant selects an option">
+    The question card shows four buttons. Each button carries a `data-val` attribute (`A`, `B`, `C`, or `D`). Tapping a button adds the `.selected` CSS class and enables the **SUBMIT** button.
+
+    ```html
+    <button class="option-btn" data-val="A">A. 纯硬件制造</button>
+    <button class="option-btn" data-val="B">B. 数字化与生态构建</button>
+    <button class="option-btn" data-val="C">C. 放弃自行车业务</button>
+    <button class="option-btn" data-val="D">D. 降价促销策略</button>
+    ```
+  </Step>
+  <Step title="Answer is sent over PeerJS">
+    Tapping **SUBMIT** calls `conn.send()` with the following message object:
+
+    ```javascript
+    conn.send({ type: 'answer', option: selectedOption });
+    // selectedOption is 'A' | 'B' | 'C' | 'D'
+    ```
+  </Step>
+  <Step title="Screen receives and plots the answer">
+    `screen.html` listens for incoming data on every connection. When a message with `type: 'answer'` arrives, it maps the option letter to an array index and increments the corresponding bar:
+
+    ```javascript
+    const optionIndex = ['A', 'B', 'C', 'D'].indexOf(data.option);
+    if (optionIndex !== -1) {
+        chart.data.datasets[0].data[optionIndex]++;
+        chart.update();
+    }
+    ```
+  </Step>
+  <Step title="Activity log is updated">
+    Immediately after the chart update, a new entry is prepended to the `#activity-log` list so the most recent answer always appears at the top:
+
+    ```javascript
+    const log = document.getElementById('activity-log');
+    log.innerHTML = `<li>[Answer] User picked ${data.option}</li>` + log.innerHTML;
+    ```
+  </Step>
+</Steps>
+
+## Submission feedback
+
+After the participant taps **SUBMIT**, two visual effects fire simultaneously.
+
+**SUCCESS overlay** — A full-screen dark overlay fades in, displaying the word `SUCCESS` in neon cyan. After **2.5 seconds** the overlay fades out and the question card resets so the participant cannot submit a second time.
+
+**Confetti burst** — canvas-confetti fires 150 particles from 60 % up the screen, spread across a 100-degree arc in three colors:
+
+```javascript
+confetti({
+    particleCount: 150,
+    spread: 100,
+    origin: { y: 0.6 },
+    colors: ['#00f3ff', '#bc13fe', '#ffffff']
+});
+```
+
+<Note>
+  The submit button is disabled immediately after submission and only re-enables if the user selects a new option. This prevents accidental double-votes within a session.
+</Note>
+
+## Customizing the question and options
+
+The question text and option labels are hardcoded in `client.html`. Edit them directly before each session.
+
+<Tabs>
+  <Tab title="Change the question">
+    Find the `.question-title` div and replace the inner text:
+
+    ```html
+    <!-- client.html, line 51 -->
+    <div class="question-title">
+      Your new question goes here.
+    </div>
+    ```
+  </Tab>
+  <Tab title="Change option labels">
+    Find the four `.option-btn` buttons inside `#options-container`. You can change the visible label freely — the value sent over the wire is always determined by the `data-val` attribute, so keep those as `A`, `B`, `C`, and `D`:
+
+    ```html
+    <div class="options" id="options-container">
+      <button class="option-btn" data-val="A">A. Your option text</button>
+      <button class="option-btn" data-val="B">B. Your option text</button>
+      <button class="option-btn" data-val="C">C. Your option text</button>
+      <button class="option-btn" data-val="D">D. Your option text</button>
+    </div>
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  Do not change the `data-val` attribute values away from `A`, `B`, `C`, `D`. `screen.html` maps these letters to bar indices `0–3` using `['A','B','C','D'].indexOf(data.option)`. Any other value evaluates to `-1` and is silently ignored.
+</Warning>
+
+## Resetting poll results between sessions
+
+Poll counts live in the Chart.js dataset in memory on `screen.html`. They reset automatically when you reload the display screen page. To clear results mid-session without a full reload, open the browser console on `screen.html` and run:
+
+```javascript
+chart.data.datasets[0].data = [0, 0, 0, 0];
+chart.update();
+document.getElementById('activity-log').innerHTML = '<li>[System] Poll reset.</li>';
+```
+
+<Tip>
+  Reload `screen.html` before each new question to guarantee a clean slate. Reloading re-initializes the PeerJS connection with the same fixed ID `screen-master-888`, so participants can reconnect without changing anything on their side.
+</Tip>
